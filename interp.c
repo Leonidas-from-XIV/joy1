@@ -1980,7 +1980,8 @@ PRIVATE void take_()
 #endif
 #ifdef CORRECT_TAKE_STRING
 	    p = result = (char *) malloc(i + 1);
-	    while (i-- > 0) *p++ = *old++; *p = 0;
+	    while (i-- > 0) *p++ = *old++;
+	    *p = 0;
 #else
 	    p = result = (char *) malloc(strlen(old) - i + 1);
 	    while (i-- > 0) *p++ = *old++;
