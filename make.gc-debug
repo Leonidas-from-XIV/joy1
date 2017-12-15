@@ -6,7 +6,7 @@ OBJS  =  interp.o  scan.o  utils.o  main.o
 CC    =  gcc -g -ansi -pedantic -Wall -D_C_SOURCE=1 -DGC_BDW -DDEBUG
 
 joy:		$(OBJS) gc/gc.a
-		$(CC) $(OBJS) gc/gc.a -lm -o joy
+		$(CC) -o$@ $(OBJS) gc/gc.a -lm
 
 $(OBJS):	$(HDRS)
 
