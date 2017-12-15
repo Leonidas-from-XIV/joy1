@@ -20,11 +20,8 @@ all:
 
 clean:
 	rm -f gc.succ gc.fail *.o
-#	if [ -d gc ]; then (cd gc; make clean); fi
 
 tar:
-	cd gc; make clean
-	rm -f gc/*.exe
-	tar -cf joy.tar *.c *.h *.joy *.inp *.out plain-manual.html make* gc
+	tar -cf joy.tar *.c *.h *.joy *.inp *.lsp *.out [Mm]ake* gcd LICENSE regres.mak CMakeLists.txt
 	rm -f joy.tar.gz
 	gzip joy.tar
