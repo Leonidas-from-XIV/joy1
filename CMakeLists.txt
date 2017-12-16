@@ -17,7 +17,7 @@ target_link_libraries(joy gc-lib)
 add_custom_target(demo1.txt ALL
                   COMMAND joy gcd 24 54 >demo1.txt)
 add_custom_target(demo2.txt ALL
-                  COMMAND joy joytut.inp >demo2.txt)                  
+                  COMMAND joy joytut.inp >demo2.txt)
 add_custom_target(demo3.txt ALL
                   COMMAND joy lsptst.joy >demo3.txt)  	
 add_custom_target(demo4.txt ALL
@@ -29,7 +29,7 @@ add_custom_target(demo6.txt ALL
 add_custom_target(demo7.txt ALL
                   COMMAND joy modtst.joy >demo7.txt)
 add_custom_target(demo8.txt ALL
-                  COMMAND joy mtrtst.joy >demo8.txt)                    
+                  COMMAND joy mtrtst.joy >demo8.txt)
 add_custom_target(demo9.txt ALL
                   COMMAND joy plgtst.joy >demo9.txt)  
 add_custom_target(demo10.txt ALL
@@ -45,4 +45,4 @@ add_custom_target(demo14.txt ALL
 add_custom_target(demo15.txt ALL
                   COMMAND joy flatjoy.joy >demo15.txt)
 add_custom_target(demo16.txt ALL
-                  COMMAND joy jp-church.joy >demo16.txt)                  
+                  COMMAND joy jp-church.joy >demo16.txt)
