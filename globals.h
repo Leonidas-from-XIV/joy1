@@ -1,5 +1,14 @@
 /* FILE : globals.h */
 
+#ifdef ORIGINAL_JOY
+#ifndef BIT_32
+#define BIT_32
+#endif
+#else
+#ifdef GC_BDW
+#define SINGLE
+#endif
+#define USE_ONLY_STDIN
 #define NO_COMPILER_WARNINGS
 #define CORRECT_FIVE_PARAMS
 #define GET_FROM_STDIN
@@ -25,9 +34,8 @@
 #define CORRECT_INTERN_STRCPY
 #define CORRECT_INTERN_LOOKUP
 #define CORRECT_STRING_WRITE
-#define CORRECT_INHAS_COMPARE
+/* #define CORRECT_INHAS_COMPARE */
 #define CORRECT_TYPE_COMPARE
-#define APPLY_FORWARD_SYMBOL
 #define BDW_ALSO_IN_MAIN
 #define FGET_FROM_FILE
 #define CORRECT_STRFTIME_BUF
@@ -41,11 +49,9 @@
 #define CORRECT_GENREC_HELP
 #define CORRECT_TREEREC_HELP
 #define CORRECT_TREEGENREC_HELP
-#ifndef GC_BDW
 #define CORRECT_TREEREC_AUX
 #define CORRECT_TREEGENREC_AUX
 #define CORRECT_PRIMREC
-#endif
 #define NO_DUPLICATE_CH
 #define CORRECT_CASE_COMPARE
 #define CORRECT_CLOCK_SECONDS
@@ -61,13 +67,38 @@
 #define CORRECT_OCTAL_NUMBER
 #define NO_EXECUTE_ERROR
 #define CORRECT_HELPDETAIL
+#define CORRECT_ALEN
+#define NO_HELP_LOCAL_SYMBOLS
+#define USE_UNKNOWN_SYMBOLS
+#define DONT_ADD_MODULE_NAMES
+#define CHECK_SYMTABMAX
+#define CHECK_DISPLAYMAX
+#define HASHVALUE_FUNCTION
+#define NO_WASTE_FP
+#define MAKE_CONTS_OBSOLETE
+/* #define TRACK_USED_SYMBOLS */
+#define TYPED_NODES
+#define CORRECT_STRING_CONCAT
+#define CORRECT_SIZE_CHECK
+#define CORRECT_FORMATF_MESSAGE
+#define CORRECT_FGETS
+#define REMOVE_UNUSED_ERRORCOUNT
+#define CORRECT_FSEEK_MANUAL
+#endif
 
+#define USE_SHELL_ESCAPE
+#define ENABLE_TRACEGC
+#define RUNTIME_CHECKS
 				/* configure			*/
 #define SHELLESCAPE	'$'
 #define INPSTACKMAX	10
 #define INPLINEMAX	1024
 #define FLOAT_BUFFER	320
+#ifdef CORRECT_ALEN
+#define ALEN		22
+#else
 #define ALEN		20
+#endif
 #define HASHSIZE	9
 #define SYMTABMAX	1000
 #define DISPLAYMAX	10	/* nesting in HIDE & MODULE	*/
@@ -88,21 +119,18 @@
 #define MAXINT		9223372036854775807LL
 #endif
 				/* symbols from getsym		*/
-#define ILLEGAL_	 0
-#define COPIED_		 1
-#define USR_		 2
+#define ILLEGAL_	0
+#define COPIED_		1
+#define USR_		2
 #define ANON_FUNCT_	3
 #define BOOLEAN_	4
-#define CHAR_	5
+#define CHAR_		5
 #define INTEGER_	6
-#define SET_	7
-#define STRING_	8
-#define LIST_	9
-#define FLOAT_	10
-#define FILE_	11
-#ifdef BUILTIN_BUILTIN
-#define FIRST_BUILTIN	12
-#endif
+#define SET_		7
+#define STRING_		8
+#define LIST_		9
+#define FLOAT_		10
+#define FILE_		11
 #ifdef CORRECT_HELPDETAIL
 #define FALSE_		12
 #define TRUE_		13
@@ -132,11 +160,16 @@
 #    define D(x)
 #endif
 
-#define PRIVATE static
+#ifdef ORIGINAL_JOY
+#define PRIVATE		static
+#else
+#define PRIVATE
+#endif
 #define PUBLIC
 
 				/* types			*/
 typedef int Symbol;
+
 typedef short Operator;
 
 typedef union
@@ -153,14 +186,32 @@ typedef union
 	struct Node *lis;
 	struct Entry *ent;
 	void (*proc)(); } Types;
+
 typedef struct Node
-  { Operator op;
-    Types u;
+  { Types u;
+    Operator op;
+#ifdef TYPED_NODES
+    Operator type;
+#endif
     struct Node *next; } Node;
+
 typedef struct Entry
   { char *name;
+#if defined(NO_HELP_LOCAL_SYMBOLS) || defined(USE_UNKNOWN_SYMBOLS) || defined(TRACK_USED_SYMBOLS)
+    unsigned char is_module;
+#else
     int is_module;
-    union 
+#endif
+#ifdef NO_HELP_LOCAL_SYMBOLS
+    unsigned char is_local;
+#endif
+#ifdef USE_UNKNOWN_SYMBOLS
+    unsigned char is_unknown;
+#endif
+#ifdef TRACK_USED_SYMBOLS
+    unsigned char is_used;
+#endif
+    union
       { Node *body;
 	struct Entry *module_fields;
 	void  (*proc) (); } u;
@@ -197,25 +248,31 @@ CLASS int display_lookup;
 CLASS Entry					/* symbol table	*/
     symtab[SYMTABMAX],
     *hashentry[HASHSIZE],
+#ifdef ORIGINAL_JOY
     *localentry,
+#endif
     *symtabindex,
     *display[DISPLAYMAX],
     *firstlibra,				/* inioptable	*/
     *location;					/* getsym	*/
 
-#define LOC2INT(e) (((long)e - (long)symtab) / sizeof(Entry))
-#define INT2LOC(x) ((Entry*) ((x + (long)symtab)) * sizeof(Entry))
+#define LOC2INT(e) (((size_t)e - (size_t)symtab) / sizeof(Entry))
+#define INT2LOC(x) ((Entry*) ((x + (size_t)symtab)) * sizeof(Entry))
 
-CLASS Node			/* dynamic memory	*/
+CLASS Node				/* dynamic memory	*/
 /*
     memory[MEMORYMAX],
     *memoryindex,
 */
+#ifdef SINGLE
+    *stk;
+#else
     *prog, *stk, *conts,
     *dump, *dump1, *dump2, *dump3, *dump4, *dump5;
+#endif
 
-#define MEM2INT(n) (((long)n - (long)memory) / sizeof(Node))
-#define INT2MEM(x) ((Node*) ((x + (long)&memory) * sizeof(Node)))
+#define MEM2INT(n) (((size_t)n - (size_t)memory) / sizeof(Node))
+#define INT2MEM(x) ((Node*) ((x + (size_t)&memory) * sizeof(Node)))
 
 /* GOOD REFS:
 	005.133l H4732		A LISP interpreter in C
@@ -232,16 +289,22 @@ CLASS Node			/* dynamic memory	*/
 */
 
 /* Public procedures: */
+#ifdef ORIGINAL_JOY
 PUBLIC void stack_(void);
 PUBLIC void dummy_(void);
+#endif
 PUBLIC void exeterm(Node *n);
-PUBLIC void inisymboltable(void)		/* initialise			*/;
+PUBLIC void inisymboltable(void)		/* initialise		*/;
 PUBLIC char *opername(int o);
 PUBLIC void lookup(void);
 PUBLIC void abortexecution_(void);
 PUBLIC void execerror(char *message, char *op);
 PUBLIC void quit_(void);
+#ifdef USE_ONLY_STDIN
+PUBLIC void inilinebuffer(char *filnam);
+#else
 PUBLIC void inilinebuffer(void);
+#endif
 PUBLIC void putline(void);
 PUBLIC int endofbuffer(void);
 PUBLIC void error(char *message);
@@ -253,7 +316,7 @@ PUBLIC void printnode(Node *p);
 PUBLIC void gc_(void);
 PUBLIC Node *newnode(Operator o, Types u, Node *r);
 PUBLIC void memoryindex_(void);
-PUBLIC void readfactor(void)	/* read a JOY factor		*/;
+PUBLIC void readfactor(void)		/* read a JOY factor		*/;
 PUBLIC void readterm(void);
 PUBLIC void writefactor(Node *n, FILE *stm);
 PUBLIC void writeterm(Node *n, FILE *stm);
@@ -262,8 +325,12 @@ PUBLIC void writeterm(Node *n, FILE *stm);
 PUBLIC void redirect(FILE *);
 #endif
 
+#ifdef HASHVALUE_FUNCTION
+PUBLIC void HashValue(char *str);
+#endif
+
 #define USR_NEWNODE(u,r)	(bucket.ent = u, newnode(USR_, bucket, r))
-#define ANON_FUNCT_NEWNODE(u,r)	(bucket.proc = u, newnode(ANON_FUNCT_, bucket, r))
+#define ANON_FUNCT_NEWNODE(u,r)	(bucket.proc= u, newnode(ANON_FUNCT_,bucket,r))
 #define BOOLEAN_NEWNODE(u,r)	(bucket.num = u, newnode(BOOLEAN_, bucket, r))
 #define CHAR_NEWNODE(u,r)	(bucket.num = u, newnode(CHAR_, bucket, r))
 #define INTEGER_NEWNODE(u,r)	(bucket.num = u, newnode(INTEGER_, bucket, r))

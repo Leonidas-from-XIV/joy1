@@ -1,9 +1,9 @@
 Joy1
 ----
 
-This is a distribution of Joy1. As the Joy homepage was rather chaotic and
-ceased to exist by now, I decided to create a distribution of Joy1 that people
-can just download and use.
+Build|Linux|Windows|Coverity|Coverage
+---|---|---|---|---
+status|[![Travis CI build status](https://travis-ci.org/Wodan58/joy1.svg?branch=master)](https://travis-ci.org/Wodan58/joy1)|[![AppVeyor CI build status](https://ci.appveyor.com/api/projects/status/github/Wodan58/joy1?branch=master&svg=true)](https://ci.appveyor.com/project/Wodan58/joy1)|<a href="https://scan.coverity.com/projects/wodan58-joy1"><img alt="Coverity Scan Build      Status" src="https://scan.coverity.com/projects/14633/badge.svg"/></a>|[![Coverage Status](https://coveralls.io/repos/github/Wodan58/joy1/badge.svg?branch=master)](https://coveralls.io/github/Wodan58/joy1?branch=master)
 
 Changes
 -------

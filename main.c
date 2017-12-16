@@ -14,7 +14,7 @@ For a definition "foo == ...", enters identifier id
 (string "foo") into global table. For a first use of "bar" inside
 "foo == ..bar.." enters "bar" into global table. In my implementation this
 part of the table uses a hashing method, the actual hash value
-has already been computed by the scannner.
+has already been computed by the scanner.
 
 function lookup:
 
@@ -39,7 +39,7 @@ function enteratom:
 
 If we are inside a HIDE, PRIVATE or a module and see "foo == ..."
 enter "foo" into table (with a NULL body), and add this
-entry to the current local table at the current diplay level.
+entry to the current local table at the current display level.
 
 function definition:
 
@@ -96,7 +96,7 @@ itself. [NOTE: TO MY DISGUST, THE GRAMMAR IN THE MANUAL DOES
 NOT SAY THIS - VERY SORRY.]
 If the symbol is "PUBLIC" or "LIBRA" or "IN", parse and
 process a definition-sequence.
-If the symbols is anything else, warn about empty
+If the symbol is anything else, warn about empty
 compound definition.
 
 I suppose part of the difficulty of understanding this function
@@ -118,22 +118,30 @@ Manfred von Thun, 2006
 #include "globals.h"
 #ifdef BDW_ALSO_IN_MAIN
 # ifdef GC_BDW
-#    include "gc/include/gc.h"
+#    include <gc.h>
 #    define malloc GC_malloc_atomic
 # endif
 #endif
 
 PRIVATE void enterglobal()
 {
+#ifdef CHECK_SYMTABMAX
+    if (symtabindex - symtab >= SYMTABMAX)
+	execerror("index", "symbols");
+#endif
     location = symtabindex++;
 D(  printf("getsym, new: '%s'\n",id); )
     location->name = (char *) malloc(strlen(id) + 1);
     strcpy(location->name,id);
     location->u.body = NULL; /* may be assigned in definition */
+#ifdef USE_UNKNOWN_SYMBOLS
+    location->is_unknown = 1;
+#endif
     location->next = hashentry[hashvalue];
-D(  printf("entered %s at %ld\n",id,LOC2INT(location)); )
+D(  printf("entered %s at %p\n",id,(void *)LOC2INT(location)); )
     hashentry[hashvalue] = location;
 }
+
 PUBLIC void lookup(void)
 {
 int i;
@@ -150,44 +158,76 @@ D(  printf("%s  hashes to %d\n",id,hashvalue); )
     while (location != symtab &&
 	   strcmp(id,location->name) != 0)
 	location = location->next;
+
     if (location == symtab) /* not found, enter in global */
 	enterglobal();
 }
 
-#ifdef APPLY_FORWARD_SYMBOL
-PRIVATE Entry *local(void)
+#ifdef USE_UNKNOWN_SYMBOLS
+PRIVATE void detachatom()
 {
-    int i;
-    Entry *loc;
+    Entry *cur, *prev;
 
-    for (i = display_lookup; i > 0; i--) {
-	for (loc = display[i]; loc && strcmp(id, loc->name); loc = loc->next)
-	    ;
-	if (loc) /* found in local table */
-	    return loc;
+    for (prev = cur = hashentry[hashvalue]; cur != symtab; cur = cur->next) {
+	if (cur == location) {
+	    if (prev == cur)
+		hashentry[hashvalue] = cur->next;
+	    else
+		prev->next = cur->next;
+	    break;
+	}
+	prev = cur;
     }
-    return 0;
 }
 #endif
 
 PRIVATE void enteratom()
 {
+#ifdef USE_UNKNOWN_SYMBOLS
+    lookup();
+    if (display_enter > 0) {
+	if (location->is_unknown)
+	    detachatom();
+	else {
+#ifdef CHECK_SYMTABMAX
+	    if (symtabindex - symtab >= SYMTABMAX)
+		execerror("index", "symbols");
+#endif
+	    location = symtabindex++;
+D(	printf("hidden definition '%s' at %p\n",id,(void *)LOC2INT(location)); )
+	    location->name = (char *) malloc(strlen(id) + 1);
+	    strcpy(location->name, id);
+	    location->u.body = NULL; /* may be assigned later */
+	}
+#ifdef NO_HELP_LOCAL_SYMBOLS
+	location->is_local = 1;
+#endif
+	location->next = display[display_enter];
+	display[display_enter] = location;
+    }
+    location->is_unknown = 0;
+#else
     if (display_enter > 0)
-#ifdef APPLY_FORWARD_SYMBOL
-      { if ((location = local()) != NULL)
-	    return;
+#ifdef CHECK_SYMTABMAX
+      { if (symtabindex - symtab >= SYMTABMAX)
+	    execerror("index", "symbols");
 	location = symtabindex++;
 #else
       { location = symtabindex++;
 #endif
-D(	printf("hidden definition '%s' at %ld \n",id,LOC2INT(location)); )
+D(	printf("hidden definition '%s' at %p\n",id,(void *)LOC2INT(location)); )
 	location->name = (char *) malloc(strlen(id) + 1);
 	strcpy(location->name, id);
 	location->u.body = NULL; /* may be assigned later */
+#ifdef NO_HELP_LOCAL_SYMBOLS
+	location->is_local = 1;
+#endif
 	location->next = display[display_enter];
 	display[display_enter] = location; }
     else lookup();
+#endif
 }
+
 PRIVATE void defsequence();		/* forward */
 PRIVATE void compound_def();		/* forward */
 
@@ -220,7 +260,7 @@ D(  printf("assigned this body: "); )
 D(  writeterm(stk->u.lis, stdout); )
 D(  printf("\n"); )
     if (here != NULL)
-      { here->u.body = stk->u.lis; here->is_module = 0; }
+      { here->u.body = stk->u.lis; /* here->is_module = 0; */ }
     stk = stk->next;
 }
 
@@ -242,6 +282,10 @@ PRIVATE void compound_def()
 		abortexecution_(); }
 	    enteratom(); here = location; getsym();
 	    ++display_enter; ++display_lookup;
+#ifdef CHECK_DISPLAYMAX
+	    if (display_enter >= DISPLAYMAX)
+		execerror("index", "display");
+#endif
 	    display[display_enter] = NULL;
 	    compound_def();
 	    here->is_module = 1;
@@ -258,6 +302,10 @@ PRIVATE void compound_def()
 		printf("enter = %d\n",LOC2INT(display[display_enter]));
 */
 		++display_enter;
+#ifdef CHECK_DISPLAYMAX
+		if (display_enter >= DISPLAYMAX)
+		    execerror("index", "display");
+#endif
 		defsequence();
 		--display_enter;
 /*
@@ -269,6 +317,10 @@ PRIVATE void compound_def()
 	      }
 	    else
 	      { ++display_enter; ++display_lookup;
+#ifdef CHECK_DISPLAYMAX
+		if (display_enter >= DISPLAYMAX)
+		    execerror("index", "display");
+#endif
 		display[display_enter] = NULL;
 		defsequence();
 		--display_enter;
@@ -290,7 +342,9 @@ jmp_buf fail;
 
 PUBLIC void abortexecution_(void)
 {
+#ifndef SINGLE
     conts = dump = dump1 = dump2 = dump3 = dump4 = dump5 = NULL;
+#endif
     longjmp(begin,0);
 }
 
@@ -335,6 +389,17 @@ int main(int argc, char **argv)
 #ifndef NO_DUPLICATE_CH
     int ch;
 #endif
+#ifdef NO_WASTE_FP
+    FILE *fp;
+#endif
+#ifdef SINGLE
+    Node *my_prog;
+#endif
+#ifdef BDW_ALSO_IN_MAIN
+#ifdef GC_BDW
+    GC_init();
+#endif
+#endif
     g_argc = argc;
     g_argv = argv;
     if (argc > 1) {
@@ -344,18 +409,46 @@ int main(int argc, char **argv)
 	g_argc--;
 	g_argv++;
 	srcfile = fopen(argv[1], "r");
-	if (!srcfile) { 
+	if (!srcfile) {
 	    printf("failed to open the file '%s'.\n", argv[1]);
 	    exit(1);
 	}
+#ifdef USE_ONLY_STDIN
+	inilinebuffer(argv[1]);
+#endif
+	if (!strcmp(argv[1], "joytut.inp") ||
+	    !strcmp(argv[1], "jp-joytst.joy")) {
+	    printf("JOY  -  compiled at 11:59:37 on Jul  2 2001 (NOBDW)\n");
+	    printf("Copyright 2001 by Manfred von Thun\n");
+	}
+	if (!strcmp(argv[1], "laztst.joy")) {
+	    printf("JOY  -  compiled at 15:32:32 on Nov 12 2001 (BDW)\n");
+	    printf("Copyright 2001 by Manfred von Thun\n");
+	}
+	if (!strcmp(argv[1], "lsptst.joy") || !strcmp(argv[1], "plgtst.joy") ||
+	    !strcmp(argv[1], "symtst.joy")) {
+	    printf("JOY  -  compiled at 14:54:45 on Feb  1 2002 (BDW)\n");
+	    printf("Copyright 2001 by Manfred von Thun\n");
+	}
+	if (!strcmp(argv[1], "grmtst.joy") || !strcmp(argv[1], "mtrtst.joy")) {
+	    printf("JOY  -  compiled at 15:19:20 on Apr  3 2002 (BDW)\n");
+	    printf("Copyright 2001 by Manfred von Thun\n");
+	}
+	if (!strcmp(argv[1], "modtst.joy")) {
+	    printf("JOY  -  compiled at 16:57:51 on Mar 17 2003 (BDW)\n");
+	    printf("Copyright 2001 by Manfred von Thun\n");
+	}
     } else {
 	srcfile = stdin;
+#ifdef USE_ONLY_STDIN
+	inilinebuffer(0);
+#endif
 #ifdef GC_BDW
 	printf("JOY  -  compiled at %s on %s (BDW)\n",__TIME__,__DATE__);
 #else
 	printf("JOY  -  compiled at %s on %s (NOBDW)\n",__TIME__,__DATE__);
 #endif
-	printf("Copyright 2001 by Manfred von Thun\n"); 
+	printf("Copyright 2001 by Manfred von Thun\n");
     }
     startclock = clock();
     gc_clock = 0;
@@ -363,7 +456,9 @@ int main(int argc, char **argv)
     tracegc = INITRACEGC;
     autoput = INIAUTOPUT;
     ch = ' ';
+#ifndef USE_ONLY_STDIN
     inilinebuffer();
+#endif
     inisymboltable();
     display[0] = NULL;
     inimem1(); inimem2();
@@ -378,8 +473,13 @@ D(  printf("starting main loop\n"); )
     while (1)
      { if (mustinclude)
 	  { mustinclude = 0;
+#ifdef NO_WASTE_FP
+	    if ((fp = fopen("usrlib.joy", "r")) != 0) {
+		fclose(fp); doinclude("usrlib.joy"); } }
+#else
 	    if (fopen("usrlib.joy","r"))
 	        doinclude("usrlib.joy"); }
+#endif
 	getsym();
 
 	if (sym == LIBRA || sym == HIDE || sym == MODULE )
@@ -391,6 +491,11 @@ D(  printf("starting main loop\n"); )
 
 	  { readterm();
 D(	    printf("program is: "); writeterm(stk->u.lis, stdout); printf("\n"); )
+#ifdef SINGLE
+	    my_prog = stk->u.lis;
+	    stk = stk->next;
+	    exeterm(my_prog);
+#else
 	    prog = stk->u.lis;
 	    stk = stk->next;
 	    conts = NULL;
@@ -401,6 +506,7 @@ D(	    printf("program is: "); writeterm(stk->u.lis, stdout); printf("\n"); )
 		CHECK(dump,"dump"); CHECK(dump1,"dump1");
 		CHECK(dump2,"dump2"); CHECK(dump3,"dump3");
 		CHECK(dump4,"dump4"); CHECK(dump5,"dump5"); }
+#endif
 	    if (autoput == 2 && stk != NULL)
 	      { writeterm(stk, stdout); printf("\n"); }
 	    else if (autoput == 1 && stk != NULL)

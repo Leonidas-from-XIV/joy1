@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
+#include <stdlib.h>
 #include "globals.h"
 # ifdef GC_BDW
-#    include "gc/include/gc.h"
+#    include <gc.h>
 # endif
 
 # ifndef GC_BDW
@@ -20,7 +21,11 @@ static int start_gc_clock;
 
 PUBLIC void inimem1(void)
 {
+#ifdef SINGLE
+    stk = NULL;
+#else
     stk = conts = dump = dump1 = dump2 = dump3 = dump4 = dump5 = NULL;
+#endif
 # ifndef GC_BDW
     direction = +1;
     memoryindex = mem_low;
@@ -36,16 +41,16 @@ PUBLIC void inimem2(void)
     mem_mid = mem_low + (MEM_HIGH)/2;
 #endif
     if (tracegc > 1)
-      { printf("memory = %ld : %ld\n",
-		(long)memory,MEM2INT(memory));
-	printf("memoryindex = %ld : %ld\n",
-		(long)memoryindex,MEM2INT(memoryindex));
-	printf("mem_low = %ld : %ld\n",
-		(long)mem_low,MEM2INT(mem_low));
-	printf("top of mem = %ld : %ld\n",
-		(long)(&memory[MEM_HIGH]),MEM2INT((&memory[MEM_HIGH])));
-	printf("mem_mid = %ld : %ld\n",
-		(long)mem_mid,MEM2INT(mem_mid)); }
+      { printf("memory = %p : %p\n",
+		(void *)memory,(void *)MEM2INT(memory));
+	printf("memoryindex = %p : %p\n",
+		(void *)memoryindex,(void *)MEM2INT(memoryindex));
+	printf("mem_low = %p : %p\n",
+		(void *)mem_low,(void *)MEM2INT(mem_low));
+	printf("top of mem = %p : %p\n",
+		(void *)&memory[MEM_HIGH],(void *)MEM2INT((&memory[MEM_HIGH])));
+	printf("mem_mid = %p : %p\n",
+		(void *)mem_mid,(void *)MEM2INT(mem_mid)); }
 # endif
 }
 PUBLIC void printnode(Node *p)
@@ -54,15 +59,15 @@ PUBLIC void printnode(Node *p)
     if (p) p = 0;
 # endif
 # ifndef GC_BDW
-    printf("%10ld:        %-10s %10ld %10ld\n",
-	MEM2INT(p),
-	symtab[(short) p->op].name,
+    printf("%10p:        %-10s %10p %10p\n",
+	(void *)MEM2INT(p),
+	symtab[(int) p->op].name,
 #ifdef NO_COMPILER_WARNINGS
-	p->op == LIST_ ? MEM2INT(p->u.lis) : (size_t)p->u.num,
+	p->op == LIST_ ? (void *)MEM2INT(p->u.lis) : (void *)(size_t)p->u.num,
 #else
 	p->op == LIST_ ? MEM2INT(p->u.lis) : p->u.num,
 #endif
-	MEM2INT(p->next));
+	(void *)MEM2INT(p->next));
 # endif
 }
 # ifndef GC_BDW
@@ -141,7 +146,7 @@ PRIVATE void gc1(mess)
     if (X != NULL)						\
       { if (tracegc > 2)					\
 	  { printf("old %s = ",NAME);				\
-	    writeterm(X, stdout); printf("\n"); }			\
+	    writeterm(X, stdout); printf("\n"); }		\
 	X = copy(X);						\
 	if (tracegc > 2)					\
 	  { printf("new %s = ",NAME);				\
@@ -178,6 +183,22 @@ PUBLIC void gc_(void)
    GC_gcollect();
 # endif
 }
+
+#ifdef STATS
+static double nodes;
+
+static void report_nodes(void)
+{
+    fprintf(stderr, "%.0f nodes allocated\n", nodes);
+}
+
+static void count_nodes(void)
+{
+    if (++nodes == 1)
+	atexit(report_nodes);
+}
+#endif
+
 PUBLIC Node *newnode(Operator o, Types u, Node *r)
 {
     Node *p;
@@ -206,6 +227,9 @@ PUBLIC Node *newnode(Operator o, Types u, Node *r)
 # ifndef GC_BDW
 D(  printnode(p); )
 # endif
+#ifdef STATS
+    count_nodes();
+#endif
     return p;
 }
 PUBLIC void memoryindex_(void)
@@ -232,7 +256,7 @@ D(  while (p)  { printf("%s\n",p->name); p = p->next; } )
     if (sym != PERIOD)
 	error("period '.' expected after module name");
     else getsym();
-    if (sym != ATOM) 
+    if (sym != ATOM)
       { error("atom expected as module field"); return; }
     lookup();
 D(  printf("looking for field %s\n",id); )
@@ -250,7 +274,7 @@ PUBLIC void readfactor(void)	/* read a JOY factor		*/
     switch (sym)
       { case ATOM:
 	    lookup();
-D(	    printf("readfactor: location = %ld\n",(long) location); )
+D(	    printf("readfactor: location = %p\n", (void *)location); )
 /* replace the following two lines:
 	    if (location->is_module)
 	      { readmodule_field(); return; }
@@ -263,9 +287,11 @@ D(	    printf("readfactor: location = %ld\n",(long) location); )
     if (sym != PERIOD)
 	error("period '.' expected after module name");
     else getsym();
-    if (sym != ATOM) 
+    if (sym != ATOM)
       { error("atom expected as module field"); return; }
+#ifndef DONT_ADD_MODULE_NAMES
     lookup();
+#endif
 D(  printf("looking for field %s\n",id); )
     while (mod_fields && strcmp(id,mod_fields->name) != 0)
 	mod_fields = mod_fields->next;
@@ -313,22 +339,44 @@ D(  printf("found field: %s\n",mod_fields->name); )
 }
 PUBLIC void readterm(void)
 {
+#ifdef SINGLE
+    Node **my_dump;
+#endif
     stk = LIST_NEWNODE(0L,stk);
+#ifdef SINGLE
+    my_dump = &stk->u.lis;
+#endif
     if (sym <= ATOM)
       { readfactor();
+#ifdef SINGLE
+	*my_dump = stk;
+	my_dump = &stk->next;
+	stk = stk->next;
+#else
 	stk->next->u.lis = stk;
 	stk = stk->next;
 	stk->u.lis->next = NULL;
 	dump = newnode(LIST_,stk->u,dump);
+#endif
 	getsym();
 	while (sym <= ATOM)
 	  { readfactor();
+#ifdef SINGLE
+	    *my_dump = stk;
+	    my_dump = &stk->next;
+	    stk = stk->next;
+#else
 	    dump->u.lis->next = stk;
 	    stk = stk->next;
 	    dump->u.lis->next->next = NULL;
 	    dump->u.lis = dump->u.lis->next;
+#endif
 	    getsym(); }
+#ifdef SINGLE
+	    *my_dump = 0; }
+#else
 	dump = dump->next; }
+#endif
 }
 
 PUBLIC void writefactor(Node *n, FILE *stm)
@@ -366,9 +414,9 @@ PUBLIC void writefactor(Node *n, FILE *stm)
 #ifdef CORRECT_STRING_WRITE
 	    fputc('"', stm);
 	    for (p = n->u.str; *p; p++) {
-		if (*p == '"' || *p == '\\')
+		if (*p == '"' || *p == '\\' || *p == '\n')
 		    fputc('\\', stm);
-		fputc(*p, stm);
+		fputc(*p == '\n' ? 'n' : *p, stm);
 	    }
 	    fputc('"', stm);
 	    return;
