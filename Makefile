@@ -22,6 +22,4 @@ clean:
 	rm -f gc.succ gc.fail *.o
 
 tar:
-	tar -cf joy.tar *.c *.h *.joy *.inp *.lsp *.out [Mm]ake* gcd LICENSE regres.mak CMakeLists.txt
-	rm -f joy.tar.gz
-	gzip joy.tar
+	tar -czf joy.tgz *.c *.h *.joy *.inp *.lsp *.out [Mm]ake* gcd LICENSE regres.mak CMakeLists.txt
